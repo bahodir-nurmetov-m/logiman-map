@@ -60,7 +60,9 @@
 
   <script>
     const tg = window.Telegram && window.Telegram.WebApp;
-    const inTelegram = !!(tg && tg.initData);
+    // Klaviatura tugmasidan ochilgan Mini App'da initData bo'sh bo'ladi,
+    // shuning uchun Telegram ichida ekanini platform orqali aniqlaymiz
+    const inTelegram = !!tg && tg.platform !== "unknown";
     const TASHKENT = [41.3111, 69.2797];
 
     const map = L.map("map", { zoomControl: false }).setView(TASHKENT, 13);

@@ -40,10 +40,13 @@
       });
     }
 
+    // Klaviatura tugmasidan ochilgan Mini App'da initData bo'sh bo'ladi,
+    // shuning uchun Telegram ichida ekanini platform orqali aniqlaymiz
+    const inTelegram = !!tg && tg.platform !== "unknown";
     // Kompyuter va brauzer versiyalarida kamera skaneri yo'q
-    const desktop = tg && ["tdesktop", "macos", "web", "weba", "webk", "unknown"].includes(tg.platform);
+    const desktop = inTelegram && ["tdesktop", "macos", "web", "weba", "webk"].includes(tg.platform);
 
-    if (!tg || !tg.initData) {
+    if (!inTelegram) {
       msg.textContent = "Bu sahifa Telegram bot ichida ochilishi kerak.";
     } else if (desktop || !tg.isVersionAtLeast("6.4")) {
       tg.ready();
