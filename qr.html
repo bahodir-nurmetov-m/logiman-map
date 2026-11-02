@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LogiMan — QR skaner</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 20px; box-sizing: border-box;
+      background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000);
+      font: 16px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+    button { display: block; width: 100%; margin-top: 14px; padding: 13px 20px; border: 0;
+      border-radius: 10px; font-size: 16px;
+      background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); }
+  </style>
+</head>
+<body>
+  <div>
+    <div id="msg">QR skaner ochilmoqda...</div>
+    <button id="scan" hidden>📷 Skanerlash</button>
+    <button id="photo" hidden>🖼 Rasm yuborish</button>
+  </div>
+  <script>
+    // Asosiy menyudagi "📷 QR kod skanerlash" tugmasi shu sahifani ochadi.
+    // Telefonda darhol Telegram'ning o'z QR skaneri (showScanQrPopup) ochiladi;
+    // kod o'qilishi bilan bot'ga yuboriladi va oyna yopiladi.
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const msg = document.getElementById("msg");
+    const scanBtn = document.getElementById("scan");
+    const photoBtn = document.getElementById("photo");
+
+    const send = obj => tg.sendData(JSON.stringify(obj));
+
+    function scan() {
+      tg.showScanQrPopup({ text: "QR kodni ramkaga to'g'rilang" }, text => {
+        if (!text) return false;  // bo'sh natija — skanerlashda davom etamiz
+        send({ qr: text });
+        return true;
+      });
+    }
+
+    // Kompyuter va brauzer versiyalarida kamera skaneri yo'q
+    const desktop = tg && ["tdesktop", "macos", "web", "weba", "webk", "unknown"].includes(tg.platform);
+
+    if (!tg || !tg.initData) {
+      msg.textContent = "Bu sahifa Telegram bot ichida ochilishi kerak.";
+    } else if (desktop || !tg.isVersionAtLeast("6.4")) {
+      tg.ready();
+      msg.textContent = "Kompyuterda kamera skaneri ishlamaydi. "
+        + "QR kodning rasmini (skrinshot) botga yuboring.";
+      photoBtn.hidden = false;
+      photoBtn.onclick = () => send({ action: "photo" });
+    } else {
+      tg.ready();
+      msg.textContent = "QR kodni kameraga ko'rsating.";
+      scanBtn.hidden = false;
+      scanBtn.onclick = scan;
+      tg.onEvent("scanQrPopupClosed", () => {
+        msg.textContent = "Skaner yopildi. Qayta urinish uchun tugmani bosing.";
+      });
+      scan();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>LogiMan — manzilni tanlash</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #fff);
+      --text: var(--tg-theme-text-color, #000);
+      --hint: var(--tg-theme-hint-color, #888);
+      --accent: var(--tg-theme-button-color, #2481cc);
+      --accent-text: var(--tg-theme-button-text-color, #fff);
+      --field: var(--tg-theme-secondary-bg-color, #f1f1f1);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font: 15px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body { display: flex; flex-direction: column; }
+    header { padding: 10px; display: flex; gap: 8px; }
+    header input { flex: 1; min-width: 0; padding: 10px 12px; border: 0; border-radius: 10px;
+      background: var(--field); color: var(--text); font-size: 15px; }
+    header button { padding: 0 14px; border: 0; border-radius: 10px;
+      background: var(--accent); color: var(--accent-text); font-size: 15px; }
+    #results { margin: 0 10px; padding: 0; list-style: none; }
+    #results li { padding: 9px 4px; border-bottom: 1px solid var(--field); cursor: pointer; }
+    #wrap { position: relative; flex: 1; }
+    #map { position: absolute; inset: 0; }
+    /* Pin markazda turadi, foydalanuvchi xaritani suradi */
+    #pin { position: absolute; left: 50%; top: 50%; z-index: 500; width: 36px; height: 36px;
+      margin: -36px 0 0 -18px; pointer-events: none; }
+    #locate { position: absolute; right: 10px; bottom: 10px; z-index: 500; width: 44px; height: 44px;
+      border: 0; border-radius: 50%; background: var(--bg); color: var(--text);
+      box-shadow: 0 1px 6px rgba(0,0,0,.3); font-size: 20px; }
+    footer { padding: 8px 12px; color: var(--hint); font-size: 13px; min-height: 2.6em; }
+    #send { display: none; margin: 0 10px 10px; padding: 13px; border: 0; border-radius: 10px;
+      background: var(--accent); color: var(--accent-text); font-size: 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <input id="q" type="search" placeholder="Manzilni qidirish (masalan: Chilonzor 9)" enterkeyhint="search">
+    <button id="search">🔍</button>
+  </header>
+  <ul id="results"></ul>
+  <div id="wrap">
+    <div id="map"></div>
+    <svg id="pin" viewBox="0 0 24 24"><path fill="#e53935" stroke="#fff" stroke-width="1"
+      d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+    <button id="locate" title="Hozirgi joyim">◎</button>
+  </div>
+  <footer id="addr">Xaritani surib, pinni uyingiz ustiga qo'ying.</footer>
+  <!-- Telegram'dan tashqarida ochilganda (sinov uchun) oddiy tugma -->
+  <button id="send">Shu joyni tanlash</button>
+
+  <script>
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const inTelegram = !!(tg && tg.initData);
+    const TASHKENT = [41.3111, 69.2797];
+
+    const map = L.map("map", { zoomControl: false }).setView(TASHKENT, 13);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap",
+    }).addTo(map);
+
+    const addrEl = document.getElementById("addr");
+    let lookupTimer;
+
+    // Pin to'xtagan joyning manzilini ko'rsatamiz (Nominatim: 1 so'rov/soniya)
+    map.on("moveend", () => {
+      clearTimeout(lookupTimer);
+      lookupTimer = setTimeout(async () => {
+        const c = map.getCenter();
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${c.lat}&lon=${c.lng}&zoom=18&accept-language=uz,ru`);
+          const d = await r.json();
+          addrEl.textContent = d.display_name || "Manzil topilmadi";
+        } catch { addrEl.textContent = ""; }
+      }, 1000);
+    });
+
+    async function search() {
+      const q = document.getElementById("q").value.trim();
+      const list = document.getElementById("results");
+      list.innerHTML = "";
+      if (!q) return;
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=uz&limit=5&accept-language=uz,ru&q=${encodeURIComponent(q)}`);
+        const items = await r.json();
+        if (!items.length) { list.innerHTML = "<li>Hech narsa topilmadi</li>"; return; }
+        for (const it of items) {
+          const li = document.createElement("li");
+          li.textContent = it.display_name;
+          li.onclick = () => { map.setView([it.lat, it.lon], 18); list.innerHTML = ""; };
+          list.appendChild(li);
+        }
+      } catch { list.innerHTML = "<li>Qidirishda xatolik</li>"; }
+    }
+    document.getElementById("search").onclick = search;
+    document.getElementById("q").addEventListener("keydown", e => { if (e.key === "Enter") search(); });
+
+    document.getElementById("locate").onclick = () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        p => map.setView([p.coords.latitude, p.coords.longitude], 18),
+        () => addrEl.textContent = "Joylashuvni aniqlab bo'lmadi",
+        { enableHighAccuracy: true, timeout: 10000 },
+      );
+    };
+
+    function send() {
+      const c = map.getCenter();
+      const data = JSON.stringify({ lat: +c.lat.toFixed(6), lon: +c.lng.toFixed(6) });
+      if (inTelegram) tg.sendData(data);  // bot web_app_data sifatida oladi, oyna yopiladi
+      else alert("Tanlangan nuqta: " + data);
+    }
+
+    if (inTelegram) {
+      tg.ready();
+      tg.expand();
+      tg.MainButton.setText("📍 Shu joyni tanlash").show().onClick(send);
+    } else {
+      const btn = document.getElementById("send");
+      btn.style.display = "block";
+      btn.onclick = send;
+    }
+  </script>
+</body>
+</html>
