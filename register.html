@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LogiMan — Ro'yxatdan o'tish</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    html, body { margin: 0; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000);
+      font: 16px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+    form { max-width: 480px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
+    h2 { margin: 0 0 16px; font-size: 20px; }
+    label { display: block; margin: 14px 0 6px; font-size: 14px; color: var(--tg-theme-hint-color, #777); }
+    input, textarea { width: 100%; box-sizing: border-box; padding: 12px; font: inherit; border-radius: 10px;
+      border: 1px solid var(--tg-theme-hint-color, #ccc); outline: none;
+      background: var(--tg-theme-secondary-bg-color, #f4f4f5); color: inherit; }
+    input:focus, textarea:focus { border-color: var(--tg-theme-button-color, #2481cc); }
+    textarea { resize: vertical; min-height: 80px; }
+    .error { display: none; margin-top: 4px; font-size: 13px; color: #e53935; }
+    .invalid + .error { display: block; }
+    .invalid { border-color: #e53935; }
+    button { display: block; width: 100%; margin-top: 22px; padding: 13px 20px; border: 0;
+      border-radius: 10px; font-size: 16px;
+      background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); }
+  </style>
+</head>
+<body>
+  <form id="form" novalidate>
+    <h2>📝 Ro'yxatdan o'tish</h2>
+
+    <label for="full_name">👤 F.I.O</label>
+    <input id="full_name" autocomplete="name" placeholder="Aliyev Vali Karimovich" maxlength="150">
+    <div class="error">Kamida ism va familiyani kiriting.</div>
+
+    <label for="phone">📱 Telefon raqam</label>
+    <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+998 90 123 45 67" value="+998 ">
+    <div class="error">Telefon raqamni to'liq kiriting (masalan: +998 90 123 45 67).</div>
+
+    <label for="address">📍 Manzil</label>
+    <textarea id="address" placeholder="Toshkent, Chilonzor 9-kvartal, 12-uy" maxlength="300"></textarea>
+    <div class="error">Manzilni to'liqroq yozing (shahar/tuman, ko'cha, uy).</div>
+
+    <button type="submit">✅ Ro'yxatdan o'tish</button>
+  </form>
+  <script>
+    // Ro'yxatdan o'tish oynasidagi "📝 Ro'yxatdan o'tish" tugmasi shu sahifani ochadi.
+    // Forma to'ldirilgach ma'lumot bot'ga yuboriladi (sendData) va oyna yopiladi.
+    // Tekshiruv bot tomonida ham takrorlanadi (bot.py: process_register_form).
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+
+    const fields = {
+      full_name: v => v.split(" ").length >= 2,
+      phone: v => { const d = v.replace(/\D/g, ""); return d.length >= 9 && d.length <= 15; },
+      address: v => v.length >= 5,
+    };
+    const clean = v => v.trim().replace(/\s+/g, " ");
+
+    for (const id in fields) {
+      document.getElementById(id).addEventListener("input", e => e.target.classList.remove("invalid"));
+    }
+
+    document.getElementById("form").addEventListener("submit", e => {
+      e.preventDefault();
+      const data = { action: "register" };
+      let ok = true;
+      for (const [id, valid] of Object.entries(fields)) {
+        const el = document.getElementById(id);
+        const value = clean(el.value);
+        const good = valid(value);
+        el.classList.toggle("invalid", !good);
+        ok = ok && good;
+        data[id] = value;
+      }
+      if (!ok) return;
+      if (!tg || tg.platform === "unknown") {
+        alert("Bu sahifa Telegram bot ichida ochilishi kerak.");
+        return;
+      }
+      tg.sendData(JSON.stringify(data));
+    });
+  </script>
+</body>
+</html>
