@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>LogiMan — Tovarlar katalogi</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --accent: #7b2ff7;
+      --accent-press: #6420d6;
+      --bg: #f2f3f7;
+      --card: #ffffff;
+      --text: #1f2026;
+      --hint: #8b8e99;
+      --line: #e7e8ee;
+      --sale: #ff2e7e;
+      --deal: #ffe234;
+      --red: #f0351f;
+      --radius: 16px;
+    }
+    .dark {
+      --bg: #101114;
+      --card: #1c1d22;
+      --text: #f1f2f5;
+      --hint: #8d909c;
+      --line: #2b2d34;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; background: var(--bg); color: var(--text);
+      font: 15px/1.35 -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
+    body { padding-bottom: 96px; }
+    button { font: inherit; cursor: pointer; }
+
+    /* --- Sarlavha, qidiruv, kategoriyalar --- */
+    header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 12px 12px 6px; }
+    .search { display: flex; align-items: center; gap: 8px; background: var(--card);
+      border-radius: 12px; padding: 0 12px; border: 1px solid var(--line); }
+    .search svg { flex: none; color: var(--hint); }
+    .search input { flex: 1; border: 0; outline: none; background: none; color: var(--text);
+      font: inherit; padding: 11px 0; }
+    .chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 4px; scrollbar-width: none; }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip { flex: none; border: 0; border-radius: 20px; padding: 7px 14px; font-size: 14px;
+      background: var(--card); color: var(--text); }
+    .chip.active { background: var(--text); color: var(--bg); }
+
+    /* --- Tovarlar to'ri --- */
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; padding: 6px 12px; }
+    @media (min-width: 560px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (min-width: 860px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+    .card { display: flex; flex-direction: column; min-width: 0; }
+    .photo { position: relative; aspect-ratio: 3 / 4; border-radius: var(--radius); overflow: hidden;
+      background: var(--card); }
+    .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      font-size: 44px; font-weight: 700; color: #fff;
+      background: linear-gradient(135deg, #9b6bff, #5a2fd6); }
+    .badge { position: absolute; left: 0; top: 10px; background: var(--accent); color: #fff;
+      font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 0 8px 8px 0;
+      letter-spacing: .3px; }
+    .discount { position: absolute; left: 8px; bottom: 8px; background: var(--sale); color: #fff;
+      font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
+    .soldout { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,.85); color: #333; font-weight: 700; }
+    .dark .soldout { background: rgba(0,0,0,.55); color: #eee; }
+
+    .info { padding: 8px 2px 0; flex: 1; display: flex; flex-direction: column; }
+    .price { font-size: 17px; font-weight: 700; }
+    .old { font-size: 13px; color: var(--hint); text-decoration: line-through; }
+    .save { align-self: flex-start; margin-top: 4px; background: var(--deal); color: #1f2026;
+      font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
+    .stock-low { margin-top: 3px; font-size: 13px; color: var(--red); }
+    .name { margin-top: 4px; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden; }
+    .cat { margin-top: 2px; font-size: 12px; color: var(--hint); }
+    .spacer { flex: 1; min-height: 8px; }
+
+    .buy { width: 100%; border: 0; border-radius: 12px; padding: 11px 8px; font-weight: 600;
+      background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .buy:active { background: var(--accent-press); }
+    .buy:disabled { background: var(--line); color: var(--hint); }
+    .stepper { display: flex; align-items: center; justify-content: space-between; border-radius: 12px;
+      background: var(--card); border: 1.5px solid var(--accent); overflow: hidden; }
+    .stepper button { border: 0; background: none; color: var(--accent); font-size: 22px; width: 44px; height: 40px; }
+    .stepper span { font-weight: 700; }
+
+    .empty { text-align: center; color: var(--hint); padding: 60px 20px; }
+
+    /* --- Pastki savatcha paneli --- */
+    .bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; padding: 10px 12px
+      calc(10px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line);
+      transform: translateY(110%); transition: transform .25s; }
+    .bar.show { transform: none; }
+    .bar button { width: 100%; border: 0; border-radius: 14px; padding: 14px; font-weight: 700; font-size: 16px;
+      background: var(--accent); color: #fff; display: flex; justify-content: space-between; }
+
+    /* --- Pastdan chiquvchi oynalar (savatcha, tovar) --- */
+    .sheet-bg { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.45); opacity: 0;
+      pointer-events: none; transition: opacity .2s; }
+    .sheet-bg.show { opacity: 1; pointer-events: auto; }
+    .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 88vh; overflow-y: auto;
+      background: var(--card); border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+      transform: translateY(105%); transition: transform .25s; max-width: 640px; margin: 0 auto; }
+    .sheet.show { transform: none; }
+    .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
+    .sheet h3 { margin: 0 0 12px; font-size: 19px; }
+
+    .line { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .line .thumb { width: 56px; height: 72px; flex: none; border-radius: 10px; overflow: hidden; }
+    .line .thumb .placeholder { font-size: 22px; }
+    .line .meta { flex: 1; min-width: 0; }
+    .line .meta .name { margin: 0; }
+    .line .stepper { flex: none; }
+    .line .stepper button { width: 34px; height: 34px; font-size: 19px; }
+    .line .stepper span { min-width: 22px; text-align: center; }
+    .total { display: flex; justify-content: space-between; font-size: 18px; font-weight: 700; padding: 14px 0; }
+    .confirm { width: 100%; border: 0; border-radius: 14px; padding: 15px; font-weight: 700; font-size: 16px;
+      background: var(--accent); color: #fff; }
+    .confirm:disabled { opacity: .6; }
+    .note { margin-top: 10px; font-size: 13px; color: var(--hint); text-align: center; }
+
+    .detail .photo { aspect-ratio: 1; margin-bottom: 12px; }
+    .detail .price { font-size: 22px; }
+    .detail .name { -webkit-line-clamp: unset; font-size: 17px; font-weight: 600; }
+    .detail .desc { margin: 10px 0 16px; color: var(--hint); white-space: pre-line; }
+    .detail .stepper button { width: 56px; height: 46px; }
+  </style>
+</head>
+<body>
+  <header>
+    <label class="search">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="Tovarlarni qidirish" autocomplete="off">
+    </label>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <main class="grid" id="grid"></main>
+
+  <div class="bar" id="bar">
+    <button id="openCart"><span id="barCount"></span><span id="barSum"></span></button>
+  </div>
+
+  <div class="sheet-bg" id="sheetBg"></div>
+  <div class="sheet" id="sheet"></div>
+
+  <script>
+    // Asosiy menyudagi "🛍 Tovarlar katalogi" tugmasi shu sahifani ochadi.
+    // Mahsulotlar bot tomonidan havolaning #d= qismiga joylanadi (bot.py: catalog_link):
+    // [kod, nomi, kategoriya, narx, eski narx, omborda, rasm, tavsif].
+    // "Zakaz berish" bosilganda savatcha bot'ga yuboriladi (sendData) — narxlar va
+    // qoldiq bot tomonida products.xlsx bo'yicha qayta tekshiriladi.
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      if (tg.colorScheme === "dark") document.documentElement.classList.add("dark");
+      try { tg.setHeaderColor(tg.colorScheme === "dark" ? "#101114" : "#f2f3f7"); } catch (e) {}
+    }
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const money = n => Math.round(n).toLocaleString("ru-RU").replace(/ /g, " ");
+    const haptic = () => { try { tg.HapticFeedback.impactOccurred("light"); } catch (e) {} };
+
+    function readCatalog() {
+      const m = location.hash.match(/[#&]d=([^&]+)/);
+      if (!m) return [];
+      try {
+        const b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        return JSON.parse(new TextDecoder().decode(bytes)).map(p => ({
+          code: p[0], name: p[1], cat: p[2], price: p[3], old: p[4], stock: p[5], img: p[6], desc: p[7],
+        }));
+      } catch (e) {
+        return [];
+      }
+    }
+
+    const items = readCatalog();
+    const byCode = Object.fromEntries(items.map(p => [p.code, p]));
+    const CART_KEY = "logiman_cart";
+    let cart = {};
+    try { cart = JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch (e) {}
+    // Katalogdan olib tashlangan yoki qoldig'i kamaygan tovarlarni savatchadan tozalaymiz
+    for (const code in cart) {
+      const p = byCode[code];
+      if (!p || cart[code] < 1) delete cart[code];
+      else if (p.stock !== null) cart[code] = Math.min(cart[code], p.stock);
+      if (cart[code] === 0) delete cart[code];
+    }
+    let category = "";
+    let query = "";
+
+    function imageSrc(p) {
+      if (/^https?:\/\//i.test(p.img)) return p.img;
+      return "images/" + encodeURIComponent(p.img || p.code + ".jpg");
+    }
+
+    function photo(p) {
+      const first = (p.name.trim()[0] || "").toUpperCase();
+      const letter = /^[\p{L}\p{N}]$/u.test(first) ? first : "📦";
+      // Rasm topilmasa — rangli fon va nomning birinchi harfi
+      return `<img src="${esc(imageSrc(p))}" alt="" loading="lazy"
+        onerror="this.outerHTML='<div class=&quot;placeholder&quot;>${letter}</div>'">`;
+    }
+
+    const maxQty = p => p.stock === null ? 999 : p.stock;
+    const percent = p => Math.round((1 - p.price / p.old) * 100);
+
+    function buyControl(p) {
+      const qty = cart[p.code] || 0;
+      if (maxQty(p) <= 0) return `<button class="buy" disabled>Tugagan</button>`;
+      if (!qty) {
+        return `<button class="buy" data-add="${esc(p.code)}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+          Savatga</button>`;
+      }
+      return `<div class="stepper">
+        <button data-dec="${esc(p.code)}">−</button><span>${qty}</span>
+        <button data-inc="${esc(p.code)}">+</button></div>`;
+    }
+
+    function card(p) {
+      const sale = p.old > p.price;
+      const low = p.stock !== null && p.stock > 0 && p.stock <= 5;
+      return `<article class="card" data-open="${esc(p.code)}">
+        <div class="photo">
+          ${photo(p)}
+          ${sale ? `<span class="badge">AKSIYA</span><span class="discount">−${percent(p)}%</span>` : ""}
+          ${maxQty(p) <= 0 ? `<div class="soldout">Tugagan</div>` : ""}
+        </div>
+        <div class="info">
+          <div class="price">${money(p.price)} so'm</div>
+          ${sale ? `<div class="old">${money(p.old)} so'm</div>
+                    <div class="save">Tejaysiz ${money(p.old - p.price)} so'm</div>` : ""}
+          ${low ? `<div class="stock-low">Faqat ${p.stock} dona qoldi</div>` : ""}
+          <div class="name">${esc(p.name)}</div>
+          ${p.cat ? `<div class="cat">${esc(p.cat)}</div>` : ""}
+          <div class="spacer"></div>
+          <div data-ctl="${esc(p.code)}">${buyControl(p)}</div>
+        </div>
+      </article>`;
+    }
+
+    function renderChips() {
+      const cats = [...new Set(items.map(p => p.cat).filter(Boolean))];
+      $("chips").hidden = cats.length < 2;
+      $("chips").innerHTML = ["", ...cats].map(c =>
+        `<button class="chip${c === category ? " active" : ""}" data-cat="${esc(c)}">${esc(c || "Barchasi")}</button>`
+      ).join("");
+    }
+
+    function renderGrid() {
+      const q = query.toLowerCase();
+      const list = items.filter(p =>
+        (!category || p.cat === category) &&
+        (!q || (p.name + " " + p.cat + " " + p.code).toLowerCase().includes(q)));
+      $("grid").innerHTML = list.length ? list.map(card).join("")
+        : `<div class="empty" style="grid-column: 1 / -1">${items.length
+            ? "Hech narsa topilmadi"
+            : "Katalog bo'sh yoki ochib bo'lmadi.<br>Botdagi «🛍 Tovarlar katalogi» tugmasini qayta bosing."}</div>`;
+    }
+
+    function cartTotals() {
+      let count = 0, sum = 0;
+      for (const code in cart) { count += cart[code]; sum += cart[code] * byCode[code].price; }
+      return { count, sum };
+    }
+
+    function refresh(code) {
+      try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {}
+      if (code) {
+        document.querySelectorAll(`[data-ctl="${CSS.escape(code)}"]`)
+          .forEach(el => { el.innerHTML = buyControl(byCode[code]); });
+      }
+      const { count, sum } = cartTotals();
+      $("bar").classList.toggle("show", count > 0);
+      $("barCount").textContent = `🛒 Zakaz berish · ${count} ta`;
+      $("barSum").textContent = `${money(sum)} so'm`;
+      if ($("sheet").dataset.view === "cart") renderCart();
+    }
+
+    function change(code, delta) {
+      const p = byCode[code];
+      const qty = Math.max(0, Math.min(maxQty(p), (cart[code] || 0) + delta));
+      if (qty) cart[code] = qty; else delete cart[code];
+      haptic();
+      refresh(code);
+    }
+
+    // --- Pastdan chiquvchi oyna ---
+    function openSheet(view, html) {
+      $("sheet").dataset.view = view;
+      $("sheet").innerHTML = `<div class="grip"></div>` + html;
+      $("sheet").scrollTop = 0;
+      $("sheet").classList.add("show");
+      $("sheetBg").classList.add("show");
+      if (tg) tg.BackButton.show();
+    }
+
+    function closeSheet() {
+      $("sheet").classList.remove("show");
+      $("sheetBg").classList.remove("show");
+      $("sheet").dataset.view = "";
+      if (tg) tg.BackButton.hide();
+    }
+
+    function openDetail(code) {
+      const p = byCode[code];
+      const sale = p.old > p.price;
+      openSheet("detail", `<div class="detail">
+        <div class="photo">${photo(p)}
+          ${sale ? `<span class="badge">AKSIYA</span><span class="discount">−${percent(p)}%</span>` : ""}</div>
+        <div class="price">${money(p.price)} so'm</div>
+        ${sale ? `<div class="old">${money(p.old)} so'm</div>` : ""}
+        <div class="name">${esc(p.name)}</div>
+        <div class="cat">${esc([p.cat, "Kod: " + p.code,
+          p.stock === null ? "" : `Omborda: ${p.stock} dona`].filter(Boolean).join(" · "))}</div>
+        <div class="desc">${esc(p.desc || "")}</div>
+        <div data-ctl="${esc(p.code)}">${buyControl(p)}</div>
+      </div>`);
+    }
+
+    function renderCart() {
+      const codes = Object.keys(cart);
+      if (!codes.length) { closeSheet(); return; }
+      const { sum } = cartTotals();
+      const lines = codes.map(code => {
+        const p = byCode[code];
+        return `<div class="line">
+          <div class="thumb photo">${photo(p)}</div>
+          <div class="meta"><div class="name">${esc(p.name)}</div>
+            <div class="price" style="font-size:15px">${money(p.price * cart[code])} so'm</div></div>
+          <div class="stepper"><button data-dec="${esc(code)}">−</button><span>${cart[code]}</span>
+            <button data-inc="${esc(code)}">+</button></div>
+        </div>`;
+      }).join("");
+      const html = `<h3>Savatcha</h3>${lines}
+        <div class="total"><span>Jami</span><span>${money(sum)} so'm</span></div>
+        <button class="confirm" id="confirm">✅ Zakazni tasdiqlash</button>
+        <div class="note">Zakaz ro'yxatdan o'tishda ko'rsatilgan telefon va manzilingizga rasmiylashtiriladi.</div>`;
+      if ($("sheet").dataset.view === "cart") {
+        $("sheet").innerHTML = `<div class="grip"></div>` + html;
+      } else {
+        openSheet("cart", html);
+      }
+    }
+
+    function sendOrder() {
+      if (!tg || tg.platform === "unknown") {
+        alert("Zakaz berish uchun katalogni Telegram bot ichida oching.");
+        return;
+      }
+      const payload = { action: "order", items: Object.keys(cart).map(code => ({ code, qty: cart[code] })) };
+      $("confirm").disabled = true;
+      // Zakaz bot'ga yuborilgach savatcha tozalanadi; oyna o'zi yopiladi
+      try { localStorage.removeItem(CART_KEY); } catch (e) {}
+      tg.sendData(JSON.stringify(payload));
+    }
+
+    // --- Hodisalar ---
+    document.addEventListener("click", e => {
+      const el = e.target.closest("[data-add],[data-inc],[data-dec],[data-cat],[data-ctl],[data-open],#confirm");
+      if (!el || el.dataset.ctl !== undefined) return;  // tugmalar orasiga bosildi
+      if (el.id === "confirm") return sendOrder();
+      if (el.dataset.add !== undefined) return change(el.dataset.add, 1);
+      if (el.dataset.inc !== undefined) return change(el.dataset.inc, 1);
+      if (el.dataset.dec !== undefined) return change(el.dataset.dec, -1);
+      if (el.dataset.cat !== undefined) {
+        category = el.dataset.cat;
+        renderChips();
+        renderGrid();
+        return;
+      }
+      if (el.dataset.open !== undefined) openDetail(el.dataset.open);
+    });
+    $("search").addEventListener("input", e => { query = e.target.value.trim(); renderGrid(); });
+    $("openCart").addEventListener("click", renderCart);
+    $("sheetBg").addEventListener("click", closeSheet);
+    if (tg) tg.BackButton.onClick(closeSheet);
+
+    renderChips();
+    renderGrid();
+    refresh();
+  </script>
+</body>
+</html>
